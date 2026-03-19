@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { Routes, Route, useNavigate, useParams, useLocation, Navigate } from "react-router-dom";
 import Hls from "hls.js";
 import { fetchPlaylistItems, fetchPlaylistMeta } from "./services/youtube.js";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import "./App.css";
 
 // ─── LOGO ──────────────────────────────────────────────────────────────────
@@ -322,8 +326,15 @@ function VideoPlayer({ video, onBack }) {
                 </div>}
               </>
             )
-            : (video.hls && video.hls !== "#"
-            ? <>
+            : (video.mp4Url ? (
+              <>
+                <video ref={vidRef} src={video.mp4Url} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing} />
+                {!playing && <div style={S.playerOverlay}>
+                  <button style={S.bigPlayBtn} onClick={() => { setPlaying(true); vidRef.current?.play(); }}>▶</button>
+                </div>}
+              </>
+            ) : (video.hls && video.hls !== "#"
+              ? <>
                 <video ref={vidRef} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing}>
                   {video.captions && <track kind="subtitles" srcLang="en" label="English" src={video.captions} default />}
                 </video>
@@ -1143,6 +1154,155 @@ function LoginView({ onBack }) {
   );
 }
 
+function UploadView({ onBack, featured, setFeatured, goTo }) {
+  const [file, setFile] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState("");
+  // Cloudinary (preferred free path)
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const cloudPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  const hasCloud = !!cloudName && !!cloudPreset;
+  // Firebase (fallback)
+  const cfg = {
+    apiKey: import.meta.env.VITE_FB_API_KEY,
+    authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FB_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET,
+    appId: import.meta.env.VITE_FB_APP_ID,
+  };
+  const hasFB = !!cfg.apiKey && !!cfg.storageBucket && !!cfg.projectId;
+  let app;
+  if (hasFB) app = getApps().length ? getApps()[0] : initializeApp(cfg);
+  // Supabase (optional)
+  const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supaAnon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const hasSupa = !!supaUrl && !!supaAnon;
+  const supabase = hasSupa ? createSupabaseClient(supaUrl, supaAnon) : null;
+
+  const addToFeatured = (url) => {
+    const item = {
+      id: `mp-${Date.now()}`,
+      title: file.name,
+      genre: "User Upload",
+      duration: "--:--",
+      views: 0,
+      watchTime: 0,
+      completion: 0,
+      thumb: "",
+      hls: "#",
+      mp4Url: url,
+      description: "User uploaded video",
+      producer: "You",
+      episode: "Upload",
+      year: new Date().getFullYear(),
+    };
+    setFeatured([item, ...featured]);
+    setStatus("Done");
+    goTo(item.id);
+  };
+
+  const startUpload = async () => {
+    if (!file) return;
+    // 1) Cloudinary unsigned upload
+    if (hasCloud) {
+      setStatus("Uploading to Cloudinary…");
+      const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", cloudPreset);
+      fd.append("folder", "tsopano");
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 4) {
+          try {
+            const res = JSON.parse(xhr.responseText || "{}");
+            if (xhr.status >= 200 && xhr.status < 300 && res.secure_url) {
+              addToFeatured(res.secure_url);
+            } else {
+              setStatus("Upload failed");
+            }
+          } catch {
+            setStatus("Upload failed");
+          }
+        }
+      };
+      xhr.open("POST", endpoint);
+      xhr.send(fd);
+      return;
+    }
+    // 2) Supabase (if configured)
+    if (hasSupa && supabase) {
+      setStatus("Uploading to Supabase…");
+      const path = `uploads/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
+      if (error) { setStatus("Upload failed"); return; }
+      const { data } = supabase.storage.from("videos").getPublicUrl(path);
+      addToFeatured(data.publicUrl);
+      return;
+    }
+    // 3) Firebase fallback (if configured)
+    if (hasFB && app) {
+      setStatus("Signing in…");
+      const auth = getAuth(app);
+      await signInAnonymously(auth).catch(()=>{});
+      const storage = getStorage(app);
+      const path = `uploads/${Date.now()}-${file.name}`;
+      const ref = storageRef(storage, path);
+      setStatus("Uploading…");
+      const task = uploadBytesResumable(ref, file);
+      task.on("state_changed", snap => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        setProgress(pct);
+      }, () => setStatus("Upload failed"), async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        addToFeatured(url);
+      });
+      return;
+    }
+    setStatus("No storage configured");
+  };
+  return (
+    <div style={{ padding:"16px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
+        <button onClick={onBack} style={{ background:"none", border:"none", color:text1, fontSize:"22px", cursor:"pointer" }}>←</button>
+        <span style={{ fontFamily:"'DM Sans', sans-serif", fontWeight:700, fontSize:"16px" }}>Upload a Video</span>
+      </div>
+      {(!hasCloud && !hasSupa && !hasFB) && (
+        <div style={{ background:bg1, border:`1px solid rgba(255,255,255,0.06)`, borderRadius:"12px", padding:"12px", fontSize:"12px", color:text2, marginBottom:"12px" }}>
+          Tip: For online uploads, add one of these (free) and redeploy:<br/>
+          • Cloudinary (recommended): VITE_CLOUDINARY_CLOUD_NAME, VITE_CLOUDINARY_UPLOAD_PRESET<br/>
+          • Firebase (fallback): VITE_FB_API_KEY, VITE_FB_AUTH_DOMAIN, VITE_FB_PROJECT_ID, VITE_FB_STORAGE_BUCKET, VITE_FB_APP_ID<br/>
+          Without these, the app will preview locally only (not persisted after refresh).
+        </div>
+      )}
+      <div style={{ background:bg1, border:`1px solid rgba(255,255,255,0.06)`, borderRadius:"12px", padding:"16px" }}>
+        <input type="file" accept="video/*" onChange={e=>setFile(e.target.files?.[0]||null)} style={{ marginBottom:"12px" }} />
+        <button
+          onClick={async () => {
+            if (!file) return;
+            if (!hasCloud && !hasSupa && !hasFB) {
+              // Local preview fallback (non-persistent)
+              setStatus("Local preview");
+              const url = URL.createObjectURL(file);
+              addToFeatured(url);
+              return;
+            }
+            await startUpload();
+          }}
+          disabled={!file}
+          style={{ background:"rgba(109,191,74,0.2)", border:`1.5px solid rgba(109,191,74,0.6)`, color:"#c8ffaa", padding:"10px 16px", borderRadius:"8px", fontWeight:800, cursor:file?"pointer":"not-allowed", fontSize:"13px" }}
+        >
+          Start Upload
+        </button>
+        {status && <div style={{ marginTop:"10px", fontSize:"12px", color:text2 }}>{status} {progress ? `· ${progress}%` : ""}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ─── APP ROOT ───────────────────────────────────────────────────────────────
 export default function TsopanoTV() {
   const [selfTapes, setSelfTapes] = useState(SELF_TAPES);
@@ -1246,6 +1406,7 @@ export default function TsopanoTV() {
           <Route path="/dashboard" element={<ProducerDashboard calcPayout={calcPayout} />} />
           <Route path="/arch" element={<ArchView />} />
           <Route path="/admin" element={<AdminPanel config={config} setConfig={setConfig} featured={featured} setFeatured={setFeatured} />} />
+          <Route path="/upload" element={<UploadView onBack={() => navigate("/")} featured={featured} setFeatured={setFeatured} goTo={(id)=>navigate(`/video/${id}`)} />} />
           <Route path="/login" element={<LoginView onBack={() => navigate("/")} />} />
           <Route path="/video/:id" element={<VideoScreen videos={featured} onBack={() => navigate("/")} />} />
           <Route path="/tape/:id" element={<TapeScreen onBack={() => navigate("/")} viewsPerStar={config.viewsPerStar} calcPayout={calcPayout} onPublish={onPublishTape} />} />
@@ -1257,6 +1418,7 @@ export default function TsopanoTV() {
         {[
           { id:"home",      icon:"home",      label:"Home" },
           { id:"dashboard", icon:"dashboard", label:"Dashboard" },
+          { id:"upload",    icon:"upload",    label:"Upload" },
           { id:"arch",      icon:"arch",      label:"Architecture" },
           { id:"admin",     icon:"admin",     label:"Admin" },
         ].map(({ id, icon, label }) => (
