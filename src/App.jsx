@@ -311,51 +311,62 @@ function VideoPlayer({ video, onBack }) {
         </div>
       ) : (
         <div style={S.videoPlayer}>
-          {(video.youtubePlaylistId)
-            ? (
-              <>
-                <iframe
-                  style={{ width:"100%", height:"100%", border:0 }}
-                  src={`https://www.youtube-nocookie.com/embed/videoseries?list=${video.youtubePlaylistId}&autoplay=${playing?1:0}&rel=0&modestbranding=1&iv_load_policy=3`}
-                  title={video.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-                {!playing && <div style={S.playerOverlay}>
-                  <button style={S.bigPlayBtn} onClick={() => setPlaying(true)}>▶</button>
-                </div>}
-              </>
-            )
-            : (video.mp4Url ? (
-              <>
-                <video ref={vidRef} src={video.mp4Url} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing} />
-                {!playing && <div style={S.playerOverlay}>
-                  <button style={S.bigPlayBtn} onClick={() => { setPlaying(true); vidRef.current?.play(); }}>▶</button>
-                </div>}
-              </>
-            ) : (video.hls && video.hls !== "#"
-              ? <>
-                <video ref={vidRef} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing}>
-                  {video.captions && <track kind="subtitles" srcLang="en" label="English" src={video.captions} default />}
-                </video>
-                {!playing && <div style={S.playerOverlay}>
-                  <button style={S.bigPlayBtn} onClick={() => { setPlaying(true); vidRef.current?.play(); }}>▶</button>
-                </div>}
-              </>
-            : video.youtubeId ? (
-              <>
-                <iframe
-                  style={{ width:"100%", height:"100%", border:0 }}
-                  src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=${playing?1:0}&rel=0&modestbranding=1&iv_load_policy=3`}
-                  title={video.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-                {!playing && <div style={S.playerOverlay}>
-                  <button style={S.bigPlayBtn} onClick={() => setPlaying(true)}>▶</button>
-                </div>}
-              </>
-            ) : (
+          {(() => {
+            if (video.youtubePlaylistId) {
+              return (
+                <>
+                  <iframe
+                    style={{ width:"100%", height:"100%", border:0 }}
+                    src={`https://www.youtube-nocookie.com/embed/videoseries?list=${video.youtubePlaylistId}&autoplay=${playing?1:0}&rel=0&modestbranding=1&iv_load_policy=3`}
+                    title={video.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                  {!playing && <div style={S.playerOverlay}>
+                    <button style={S.bigPlayBtn} onClick={() => setPlaying(true)}>▶</button>
+                  </div>}
+                </>
+              );
+            }
+            if (video.mp4Url) {
+              return (
+                <>
+                  <video ref={vidRef} src={video.mp4Url} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing} />
+                  {!playing && <div style={S.playerOverlay}>
+                    <button style={S.bigPlayBtn} onClick={() => { setPlaying(true); vidRef.current?.play(); }}>▶</button>
+                  </div>}
+                </>
+              );
+            }
+            if (video.hls && video.hls !== "#") {
+              return (
+                <>
+                  <video ref={vidRef} poster={video.thumb} style={{ width:"100%", height:"100%" }} controls autoPlay={playing}>
+                    {video.captions && <track kind="subtitles" srcLang="en" label="English" src={video.captions} default />}
+                  </video>
+                  {!playing && <div style={S.playerOverlay}>
+                    <button style={S.bigPlayBtn} onClick={() => { setPlaying(true); vidRef.current?.play(); }}>▶</button>
+                  </div>}
+                </>
+              );
+            }
+            if (video.youtubeId) {
+              return (
+                <>
+                  <iframe
+                    style={{ width:"100%", height:"100%", border:0 }}
+                    src={`https://www.youtube-nocookie.com/embed/${video.youtubeId}?autoplay=${playing?1:0}&rel=0&modestbranding=1&iv_load_policy=3`}
+                    title={video.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                  {!playing && <div style={S.playerOverlay}>
+                    <button style={S.bigPlayBtn} onClick={() => setPlaying(true)}>▶</button>
+                  </div>}
+                </>
+              );
+            }
+            return (
               <>
                 <img src={video.thumb} alt={video.title} style={S.playerImg} />
                 <div style={S.playerOverlay}>
@@ -369,8 +380,8 @@ function VideoPlayer({ video, onBack }) {
                   }
                 </div>
               </>
-            ))
-          }
+            );
+          })()}
           <div style={S.progressBar}>
             <div style={{ height:"100%", background:green, width:`${progress}%`, transition:"width 0.3s" }} />
           </div>
