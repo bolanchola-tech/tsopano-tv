@@ -1,0 +1,35 @@
+:root {
+  --green: #6DBF4A;
+  --gold: #C8920A;
+  --tv-red: #D42B2B;
+  --bg0: #0e0e0e;
+  --bg1: #181818;
+  --bg2: #222222;
+  --text1: #F2F2F2;
+  --text2: #999999;
+  --text3: #555555;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg0);
+  color: var(--text1);
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #1c1c1c;
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.06), rgba(255,255,255,0));
+  transform: translateX(-100%);
+  animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
