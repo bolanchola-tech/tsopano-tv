@@ -1206,7 +1206,7 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
     // 1) Cloudinary unsigned upload
     if (hasCloud) {
       setStatus("Uploading to Cloudinary…");
-      const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`;
+      const endpoint = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", cloudPreset);
