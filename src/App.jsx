@@ -31,7 +31,7 @@ const FEATURED = [
 const SELF_TAPES = [
   { id:"st1", title:"Scene Challenge: The Confession", stars:6, views:12400, submitter:"Chanda_M", thumb:"https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=400&q=80", sceneRef:"Baobab Street S1E1" },
   { id:"st2", title:"Scene Challenge: Market Hustle", stars:15, views:31200, submitter:"NgoziActress", thumb:"https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&q=80", sceneRef:"Mama Bwalya S2E3" },
-  { id:"st3", title:"Scene Challenge: Rooftop Argument", stars:4, views:8700, submitter:"KaluBoy254", thumb:"https://images.unsplash.com/photo-1615986201152-7686a4899f30?w=400&q=80", sceneRef:"Lusaka After Dark" },
+  { id:"st3", title:"Scene Challenge: Rooftop Argument", stars:4, views:8700, submitter:"KaluBoy254", thumb:"https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=400&q=80", sceneRef:"Lusaka After Dark" },
   { id:"st4", title:"Scene Challenge: The Proposal", stars:22, views:44800, submitter:"ZedQueenActing", thumb:"https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=400&q=80", sceneRef:"Baobab Street S1E2" },
 ];
 
