@@ -622,6 +622,7 @@ function HomePage({ featured, onVideoSelect, onSelfTapeSelect, viewsPerStar, sel
 
 // ─── SELF-TAPE PAGE ─────────────────────────────────────────────────────────
 function SelfTapePage({ tape, onBack, viewsPerStar, calcPayout, onPublish }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState(0); // 0=view, 1=details, 2=uploading, 3=processing, 4=review, 5=live
   const [progress, setProgress] = useState(0);
   const [title, setTitle] = useState("");
@@ -699,10 +700,25 @@ function SelfTapePage({ tape, onBack, viewsPerStar, calcPayout, onPublish }) {
             </div>
             <div style={{ background:bg1, borderRadius:"10px", padding:"14px", marginBottom:"14px" }}>
               <div style={{ fontSize:"12px", fontWeight:700, color:text1, marginBottom:"10px" }}>📁 Upload your video file</div>
-              <div style={{ border:"2px dashed rgba(232,112,32,0.35)", borderRadius:"8px", padding:"24px", textAlign:"center", cursor:"pointer" }}>
+              <button
+                type="button"
+                onClick={() => navigate("/upload?from=self-tape")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/upload?from=self-tape"); } }}
+                aria-label="Go to Upload"
+                style={{ width:"100%", border:"2px dashed rgba(232,112,32,0.35)", background:"transparent", borderRadius:"8px", padding:"24px", textAlign:"center", cursor:"pointer", color:text1 }}
+              >
                 <div style={{ fontSize:"28px", marginBottom:"8px" }}>📱</div>
                 <div style={{ fontSize:"13px", color:text2, marginBottom:"4px" }}>Tap to choose video from your device</div>
                 <div style={{ fontSize:"11px", color:text3 }}>MP4, MOV · Max 500MB · Under 10 mins</div>
+              </button>
+              <div style={{ marginTop:"10px", textAlign:"center" }}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/upload?from=self-tape")}
+                  style={{ background:"rgba(232,112,32,0.22)", border:"1px solid rgba(232,112,32,0.6)", color:"#ffd4a0", padding:"8px 14px", borderRadius:"8px", fontSize:"12px", fontWeight:800, cursor:"pointer" }}
+                >
+                  Open Upload Page
+                </button>
               </div>
             </div>
             <div style={{ display:"flex", alignItems:"flex-start", gap:"10px", background:bg1, borderRadius:"10px", padding:"12px", marginBottom:"16px" }}
@@ -1169,6 +1185,9 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
   const [file, setFile] = useState(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const xhrRef = useRef(null);
   // Cloudinary (preferred free path)
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
   const cloudPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
@@ -1190,7 +1209,7 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
   const hasSupa = !!supaUrl && !!supaAnon;
   const supabase = hasSupa ? createSupabaseClient(supaUrl, supaAnon) : null;
 
-  const addToFeatured = (url) => {
+  const addToFeatured = (url, poster) => {
     const item = {
       id: `mp-${Date.now()}`,
       title: file.name,
@@ -1199,7 +1218,7 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
       views: 0,
       watchTime: 0,
       completion: 0,
-      thumb: "",
+      thumb: poster || "",
       hls: "#",
       mp4Url: url,
       description: "User uploaded video",
@@ -1212,8 +1231,19 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
     goTo(item.id);
   };
 
+  const ACCEPTED = ["video/mp4", "video/webm", "video/quicktime"];
+  const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+  const validateFile = (f) => {
+    if (!f) return "No file selected";
+    if (!ACCEPTED.includes(f.type)) return "Only MP4, WEBM or MOV videos are allowed";
+    if (f.size > MAX_SIZE) return "File is too large (max 100MB for test uploads)";
+    return "";
+  };
+
   const startUpload = async () => {
     if (!file) return;
+    const e = validateFile(file);
+    if (e) { setError(e); return; }
     // 1) Cloudinary unsigned upload
     if (hasCloud) {
       setStatus("Uploading to Cloudinary…");
@@ -1231,16 +1261,26 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
           try {
             const res = JSON.parse(xhr.responseText || "{}");
             if (xhr.status >= 200 && xhr.status < 300 && res.secure_url) {
-              addToFeatured(res.secure_url);
+              const poster = (() => {
+                try {
+                  const u = res.secure_url;
+                  return u.replace("/upload/", "/upload/so_1/").replace(/\.(mp4|mov|webm)(\?.*)?$/i, ".jpg");
+                } catch { return ""; }
+              })();
+              addToFeatured(res.secure_url, poster);
             } else {
               setStatus("Upload failed");
             }
           } catch {
             setStatus("Upload failed");
           }
+          setUploading(false);
+          xhrRef.current = null;
         }
       };
       xhr.open("POST", endpoint);
+      setUploading(true);
+      xhrRef.current = xhr;
       xhr.send(fd);
       return;
     }
@@ -1251,7 +1291,7 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
       const { error } = await supabase.storage.from("videos").upload(path, file, { contentType: file.type });
       if (error) { setStatus("Upload failed"); return; }
       const { data } = supabase.storage.from("videos").getPublicUrl(path);
-      addToFeatured(data.publicUrl);
+      addToFeatured(data.publicUrl, "");
       return;
     }
     // 3) Firebase fallback (if configured)
@@ -1269,7 +1309,7 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
         setProgress(pct);
       }, () => setStatus("Upload failed"), async () => {
         const url = await getDownloadURL(task.snapshot.ref);
-        addToFeatured(url);
+        addToFeatured(url, "");
       });
       return;
     }
@@ -1290,7 +1330,24 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
         </div>
       )}
       <div style={{ background:bg1, border:`1px solid rgba(255,255,255,0.06)`, borderRadius:"12px", padding:"16px" }}>
-        <input type="file" accept="video/*" onChange={e=>setFile(e.target.files?.[0]||null)} style={{ marginBottom:"12px" }} />
+        <input
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime"
+          onChange={e=>{
+            const f = e.target.files?.[0]||null;
+            setFile(f);
+            setError(validateFile(f));
+            setProgress(0);
+            setStatus("");
+          }}
+          style={{ marginBottom:"12px" }}
+        />
+        {file && (
+          <div style={{ fontSize:"12px", color:text2, marginBottom:"10px" }}>
+            {file.name} · {(file.size/1024/1024).toFixed(1)}MB · {file.type || "unknown"}
+          </div>
+        )}
+        {error && <div style={{ fontSize:"12px", color:tvRed, marginBottom:"10px" }}>{error}</div>}
         <button
           onClick={async () => {
             if (!file) return;
@@ -1298,17 +1355,30 @@ function UploadView({ onBack, featured, setFeatured, goTo }) {
               // Local preview fallback (non-persistent)
               setStatus("Local preview");
               const url = URL.createObjectURL(file);
-              addToFeatured(url);
+              addToFeatured(url, "");
               return;
             }
             await startUpload();
           }}
-          disabled={!file}
+          disabled={!file || !!error || uploading}
           style={{ background:"rgba(109,191,74,0.2)", border:`1.5px solid rgba(109,191,74,0.6)`, color:"#c8ffaa", padding:"10px 16px", borderRadius:"8px", fontWeight:800, cursor:file?"pointer":"not-allowed", fontSize:"13px" }}
         >
-          Start Upload
+          {uploading ? "Uploading…" : "Start Upload"}
         </button>
+        {uploading && (
+          <button
+            onClick={() => { try { xhrRef.current?.abort(); } catch {} setUploading(false); setStatus("Cancelled"); }}
+            style={{ marginLeft:"8px", background:"transparent", border:`1px solid rgba(255,255,255,0.15)`, color:text2, padding:"10px 12px", borderRadius:"8px", fontSize:"12px", cursor:"pointer" }}
+          >
+            Cancel
+          </button>
+        )}
         {status && <div style={{ marginTop:"10px", fontSize:"12px", color:text2 }}>{status} {progress ? `· ${progress}%` : ""}</div>}
+        {uploading && (
+          <div style={{ marginTop:"8px", height:"6px", background:bg2, borderRadius:"6px", overflow:"hidden" }}>
+            <div style={{ width:`${progress}%`, height:"100%", background:green, transition:"width 0.2s" }} />
+          </div>
+        )}
       </div>
     </div>
   );
