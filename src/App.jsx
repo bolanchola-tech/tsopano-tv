@@ -523,8 +523,8 @@ function HomePage({ featured, onVideoSelect, onSelfTapeSelect, viewsPerStar, sel
           <div style={{ fontFamily:"'DM Sans', sans-serif", fontSize:"14px", fontWeight:700, marginBottom:"5px" }}>"The Farewell" — Baobab Street S1E5</div>
           <div style={{ fontSize:"12px", color:text2, marginBottom:"12px" }}>Record your take on this emotional goodbye scene. Top submission wins featured placement.</div>
           <div style={{ display:"flex", gap:"8px" }}>
-            <button style={{ background:"rgba(232,112,32,0.22)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", color:"#ffd4a0", border:"1.5px solid rgba(232,112,32,0.7)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 10px rgba(232,112,32,0.25)", padding:"9px 16px", borderRadius:"8px", fontSize:"12px", fontWeight:800, cursor:"pointer", flex:1 }}>🎬 Submit Your Tape</button>
-            <button style={{ background:"rgba(109,191,74,0.2)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", color:"#c8ffaa", border:"1.5px solid rgba(109,191,74,0.65)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.18)", padding:"9px 12px", borderRadius:"8px", fontSize:"12px", fontWeight:700, cursor:"pointer" }}>▶ Watch</button>
+            <a href="#/upload?from=scene-week" style={{ display:"inline-block", textAlign:"center", background:"rgba(232,112,32,0.22)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", color:"#ffd4a0", border:"1.5px solid rgba(232,112,32,0.7)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 10px rgba(232,112,32,0.25)", padding:"9px 16px", borderRadius:"8px", fontSize:"12px", fontWeight:800, textDecoration:"none", flex:1 }}>🎬 Submit Your Tape</a>
+            <a href="#/video/f1" style={{ display:"inline-block", textAlign:"center", background:"rgba(109,191,74,0.2)", backdropFilter:"blur(8px)", WebkitBackdropFilter:"blur(8px)", color:"#c8ffaa", border:"1.5px solid rgba(109,191,74,0.65)", boxShadow:"inset 0 1px 0 rgba(255,255,255,0.18)", padding:"9px 12px", borderRadius:"8px", fontSize:"12px", fontWeight:700, textDecoration:"none" }}>▶ Watch</a>
           </div>
         </div>
         {/* Scroll row */}
@@ -1484,6 +1484,7 @@ export default function TsopanoTV() {
       <div style={{ paddingBottom:"72px" }}>
         <Routes>
           <Route path="/" element={<HomePage featured={featured} onVideoSelect={onVideoSelect} onSelfTapeSelect={onSelfTapeSelect} viewsPerStar={config.viewsPerStar} selfTapes={selfTapes} />} />
+          <Route path="/auditions" element={<AuditionsView selfTapes={selfTapes} onSelect={(t)=>navigate(`/tape/${t.id}`)} />} />
           <Route path="/dashboard" element={<ProducerDashboard calcPayout={calcPayout} />} />
           <Route path="/arch" element={<ArchView />} />
           <Route path="/admin" element={<AdminPanel config={config} setConfig={setConfig} featured={featured} setFeatured={setFeatured} />} />
@@ -1528,4 +1529,36 @@ function TapeScreen({ onBack, viewsPerStar, calcPayout, onPublish }) {
   const t = all.find(x => x.id === id) || null;
   if (!t) return <Navigate to="/" replace />;
   return <SelfTapePage tape={t} onBack={onBack} viewsPerStar={viewsPerStar} calcPayout={calcPayout} onPublish={onPublish} />;
+}
+
+function AuditionsView({ selfTapes, onSelect }) {
+  const [mode, setMode] = useState("all"); // all | week
+  const list = mode === "week" ? [...selfTapes].slice(0, 10) : selfTapes;
+  const sorted = [...list].sort((a,b)=>b.views-a.views);
+  return (
+    <div style={{ padding:"16px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"12px" }}>
+        <span style={{ fontFamily:"'DM Sans', sans-serif", fontWeight:700, fontSize:"16px" }}>Self‑Tape Auditions</span>
+        <div style={{ marginLeft:"auto", display:"flex", gap:"6px" }}>
+          <button onClick={()=>setMode("week")} style={{ background: mode==="week" ? "rgba(109,191,74,0.2)" : "transparent", border:`1px solid ${mode==="week" ? "rgba(109,191,74,0.6)" : "rgba(255,255,255,0.12)"}`, color: mode==="week" ? "#c8ffaa" : "#aaa", padding:"6px 10px", borderRadius:"8px", fontSize:"12px", cursor:"pointer" }}>This Week</button>
+          <button onClick={()=>setMode("all")} style={{ background: mode==="all" ? "rgba(109,191,74,0.2)" : "transparent", border:`1px solid ${mode==="all" ? "rgba(109,191,74,0.6)" : "rgba(255,255,255,0.12)"}`, color: mode==="all" ? "#c8ffaa" : "#aaa", padding:"6px 10px", borderRadius:"8px", fontSize:"12px", cursor:"pointer" }}>All‑Time</button>
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:"10px" }}>
+        {sorted.map(t => (
+          <div key={t.id} onClick={()=>onSelect(t)} style={{ background:"var(--bg1)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:"10px", overflow:"hidden", cursor:"pointer" }}>
+            <div style={{ position:"relative", aspectRatio:"9/13" }}>
+              <img src={t.thumb} alt={t.submitter} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.65), transparent 55%)" }} />
+              <div style={{ position:"absolute", bottom:"6px", left:"6px" }}><div style={{ ...S.starBadge, background:"rgba(109,191,74,0.25)" }}>⭐ {Math.floor(t.views/2000)}</div></div>
+            </div>
+            <div style={{ padding:"8px" }}>
+              <div style={{ fontSize:"11px", fontWeight:600, color:"var(--text1)" }}>{t.submitter}</div>
+              <div style={{ fontSize:"10px", color:"var(--text3)" }}>{fmt.views(t.views)} views</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
